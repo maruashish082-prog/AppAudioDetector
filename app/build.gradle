@@ -23,12 +23,22 @@ android {
         signingProps.load(new FileInputStream(keystorePropertiesFile))
     }
 
+    // Resolve signing values — env vars (CI) take priority over local keystore.properties
+    def resolvedStoreFile    = System.getenv("KEYSTORE_PATH")  ?: signingProps["storeFile"]
+    def resolvedStorePass    = System.getenv("STORE_PASSWORD") ?: signingProps["storePassword"]
+    def resolvedKeyAlias     = System.getenv("KEY_ALIAS")      ?: signingProps["keyAlias"]
+    def resolvedKeyPass      = System.getenv("KEY_PASSWORD")   ?: signingProps["keyPassword"]
+
+    def hasSigningConfig = resolvedStoreFile && resolvedStorePass && resolvedKeyAlias && resolvedKeyPass
+
     signingConfigs {
-        release {
-            storeFile = file(System.getenv("KEYSTORE_PATH") ?: signingProps["storeFile"] ?: "keystore.jks")
-            storePassword = System.getenv("STORE_PASSWORD") ?: signingProps["storePassword"]
-            keyAlias = System.getenv("KEY_ALIAS") ?: signingProps["keyAlias"]
-            keyPassword = System.getenv("KEY_PASSWORD") ?: signingProps["keyPassword"]
+        if (hasSigningConfig) {
+            release {
+                storeFile     = file(resolvedStoreFile)
+                storePassword = resolvedStorePass
+                keyAlias      = resolvedKeyAlias
+                keyPassword   = resolvedKeyPass
+            }
         }
     }
 
@@ -39,7 +49,10 @@ android {
             minifyEnabled false
         }
         release {
-            signingConfig signingConfigs.release
+            // Use release signing if credentials are present, otherwise leave unsigned
+            if (hasSigningConfig) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
