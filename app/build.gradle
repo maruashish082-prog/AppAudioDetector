@@ -16,37 +16,12 @@ android {
         versionName "1.0"
     }
 
-    // ── Signing ──────────────────────────────────────────────────────
-    def keystoreFile  = rootProject.file("keystore.properties")
-    def signingProps  = new Properties()
-    if (keystoreFile.exists()) {
-        signingProps.load(new FileInputStream(keystoreFile))
-    }
-
-    def ksPath = System.getenv("KEYSTORE_PATH")  ?: signingProps["storeFile"]     ?: ""
-    def ksPass = System.getenv("STORE_PASSWORD") ?: signingProps["storePassword"] ?: ""
-    def kAlias = System.getenv("KEY_ALIAS")      ?: signingProps["keyAlias"]      ?: ""
-    def kPass  = System.getenv("KEY_PASSWORD")   ?: signingProps["keyPassword"]   ?: ""
-    def hasReleaseKey = ksPath && ksPass && kAlias && kPass &&
-                        new File(rootProject.projectDir, ksPath).exists()
-
     signingConfigs {
-        // Always available — uses ~/.android/debug.keystore (auto-created by Android SDK)
-        // Produces installable APK even without a custom keystore
-        debugKey {
-            storeFile     = file("${System.getProperty('user.home')}/.android/debug.keystore")
-            storePassword = "android"
-            keyAlias      = "androiddebugkey"
-            keyPassword   = "android"
-        }
-
-        if (hasReleaseKey) {
-            release {
-                storeFile     = rootProject.file(ksPath)
-                storePassword = ksPass
-                keyAlias      = kAlias
-                keyPassword   = kPass
-            }
+        release {
+            storeFile     = file(System.getenv("KEYSTORE_PATH") ?: "debug.keystore")
+            storePassword = System.getenv("STORE_PASSWORD")     ?: "android"
+            keyAlias      = System.getenv("KEY_ALIAS")          ?: "androiddebugkey"
+            keyPassword   = System.getenv("KEY_PASSWORD")       ?: "android"
         }
     }
 
@@ -55,15 +30,12 @@ android {
             applicationIdSuffix ".debug"
             versionNameSuffix "-debug"
             minifyEnabled false
-            signingConfig signingConfigs.debugKey
         }
         release {
+            signingConfig signingConfigs.release
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            // Use real release key if available, otherwise fall back to debug key
-            // Both produce INSTALLABLE APKs — release key is required for Play Store only
-            signingConfig hasReleaseKey ? signingConfigs.release : signingConfigs.debugKey
         }
     }
 
