@@ -17,21 +17,30 @@ android {
     }
 
     // ── Signing ──────────────────────────────────────────────────────
-    // Reads from env vars (CI) or keystore.properties (local dev)
-    def keystoreFile   = rootProject.file("keystore.properties")
-    def signingProps   = new Properties()
+    def keystoreFile  = rootProject.file("keystore.properties")
+    def signingProps  = new Properties()
     if (keystoreFile.exists()) {
         signingProps.load(new FileInputStream(keystoreFile))
     }
 
-    def ksPath  = System.getenv("KEYSTORE_PATH")  ?: signingProps["storeFile"]  ?: ""
-    def ksPass  = System.getenv("STORE_PASSWORD") ?: signingProps["storePassword"] ?: ""
-    def kAlias  = System.getenv("KEY_ALIAS")      ?: signingProps["keyAlias"]    ?: ""
-    def kPass   = System.getenv("KEY_PASSWORD")   ?: signingProps["keyPassword"] ?: ""
-    def canSign = ksPath && ksPass && kAlias && kPass && new File(rootProject.projectDir, ksPath).exists()
+    def ksPath = System.getenv("KEYSTORE_PATH")  ?: signingProps["storeFile"]     ?: ""
+    def ksPass = System.getenv("STORE_PASSWORD") ?: signingProps["storePassword"] ?: ""
+    def kAlias = System.getenv("KEY_ALIAS")      ?: signingProps["keyAlias"]      ?: ""
+    def kPass  = System.getenv("KEY_PASSWORD")   ?: signingProps["keyPassword"]   ?: ""
+    def hasReleaseKey = ksPath && ksPass && kAlias && kPass &&
+                        new File(rootProject.projectDir, ksPath).exists()
 
-    if (canSign) {
-        signingConfigs {
+    signingConfigs {
+        // Always available — uses ~/.android/debug.keystore (auto-created by Android SDK)
+        // Produces installable APK even without a custom keystore
+        debugKey {
+            storeFile     = file("${System.getProperty('user.home')}/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias      = "androiddebugkey"
+            keyPassword   = "android"
+        }
+
+        if (hasReleaseKey) {
             release {
                 storeFile     = rootProject.file(ksPath)
                 storePassword = ksPass
@@ -46,16 +55,15 @@ android {
             applicationIdSuffix ".debug"
             versionNameSuffix "-debug"
             minifyEnabled false
+            signingConfig signingConfigs.debugKey
         }
         release {
-            // shrinkResources requires minifyEnabled — both are safe without signing
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            if (canSign) {
-                signingConfig signingConfigs.release
-            }
-            // Without signing: produces app-release-unsigned.apk — workflow handles it
+            // Use real release key if available, otherwise fall back to debug key
+            // Both produce INSTALLABLE APKs — release key is required for Play Store only
+            signingConfig hasReleaseKey ? signingConfigs.release : signingConfigs.debugKey
         }
     }
 
